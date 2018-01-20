@@ -197,6 +197,20 @@ static void hexdump32(uint32_t *p, int len) {
     printf("\n");
 }
 
+static void *map_file(char *filename) {
+    int fd = open(filename, O_RDONLY);
+    struct stat statbuf;
+    char *buffer = NULL;
+
+    if (fd >= 0) {
+        fstat(fd, &statbuf);
+        buffer = mmap(NULL, statbuf.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+        close(fd);
+    }
+
+    return buffer;
+}
+
 int main(int argc, const char **argv) {
     int opt;
     int ret = 0;
@@ -247,13 +261,7 @@ int main(int argc, const char **argv) {
         help(argv[0], -1);
     }
     
-    int fd = open(input, O_RDONLY);
-    struct stat statbuf; 
-    char *buffer = NULL;
-
-    fstat(fd, &statbuf);
-
-    buffer = mmap(NULL, statbuf.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    char *buffer = map_file(input);
 
     dji_image_header_t *hdr = (dji_image_header_t *)buffer; 
 
