@@ -227,7 +227,6 @@ int main(int argc, const char **argv) {
                 output = optarg;
                 break;
             case 'H':
-                /* TODO TODO TODO TODO */
                 header = optarg;
                 break;
             case 'n':
@@ -260,10 +259,21 @@ int main(int argc, const char **argv) {
         printf("must input image name\n");
         help(argv[0], -1);
     }
-    
-    char *buffer = map_file(input);
 
-    dji_image_header_t *hdr = (dji_image_header_t *)buffer; 
+    unsigned char *hdr_buffer = NULL;
+    unsigned char *payload = NULL;
+    dji_image_header_t *hdr = NULL;
+
+    if (header) {
+        hdr_buffer = map_file(header);
+        hdr = (dji_image_header_t *)hdr_buffer;
+        payload = map_file(input);
+    }
+    else {
+        hdr_buffer = map_file(input);
+        hdr = (dji_image_header_t *)hdr_buffer;
+        payload = hdr_buffer + hdr->header_size + hdr->signature_size;
+    }
 
     if (hdr->magic_num != STR2ID('IM*H')) {
         printf("Invalid header magic!\n");
@@ -343,7 +353,7 @@ int main(int argc, const char **argv) {
     unsigned char hash[32];
 
     SHA256_hash(hdr, hdr->header_size, hash);
-    ret = RSA_verify(auth_key, 
+    ret = RSA_verify(auth_key,
                (const unsigned char*)hdr + hdr->header_size,
                hdr->signature_size,
                hash,
@@ -354,7 +364,7 @@ int main(int argc, const char **argv) {
         exit(1);
     }
 
-    SHA256_hash((unsigned char *)hdr + hdr->header_size + hdr->signature_size, hdr->payload_size, hash);
+    SHA256_hash(payload, hdr->payload_size, hash);
     if (memcmp(hash, hdr->payload_digest, 32) != 0) {
         printf("Digest verification failed\n");
         exit(1);
@@ -363,7 +373,7 @@ int main(int argc, const char **argv) {
     if (output) {
         int fd2 = open(output, O_CREAT | O_TRUNC | O_WRONLY, 0644);
         if (hdr->chunk[0].attr & DJI_IMAGE_CHUNK_CLEAR) {
-            write(fd2, (unsigned char *)hdr + hdr->header_size + hdr->signature_size, hdr->chunk[0].size);
+            write(fd2, payload, hdr->chunk[0].size);
         }
         else {
             uint8_t scram_key[16];
@@ -394,7 +404,7 @@ int main(int argc, const char **argv) {
             int pos = 0;
             while (padded_len) {
                 int n = min(padded_len, 1024);
-                ret = cbc_decrypt((unsigned char *)hdr + hdr->header_size + hdr->signature_size + pos, outbuf, n, &cbc);
+                ret = cbc_decrypt(payload + pos, outbuf, n, &cbc);
                 if (ret != CRYPT_OK) {
                     printf("Failed to decrypt\n");
                     exit(1);
@@ -403,7 +413,7 @@ int main(int argc, const char **argv) {
                 padded_len -= n;
 
                 if (pos > hdr->chunk[0].size)
-                n = hdr->chunk[0].size - (pos - n); 
+                n = hdr->chunk[0].size - (pos - n);
                 write(fd2, outbuf, n);
             }
             cbc_done(&cbc);
@@ -412,9 +422,9 @@ int main(int argc, const char **argv) {
     }
 
     printf("Slack OG Done !\n");
-        
+
     exit(0);
-        
+
     return ret;
 }
 
