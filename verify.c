@@ -360,54 +360,56 @@ int main(int argc, const char **argv) {
         exit(1);
     }
 
-    int fd2 = open(output, O_CREAT | O_TRUNC | O_WRONLY, 0644);
-    if (hdr->chunk[0].attr & DJI_IMAGE_CHUNK_CLEAR) {
-        write(fd2, (unsigned char *)hdr + hdr->header_size + hdr->signature_size, hdr->chunk[0].size);
-    }
-    else {
-        uint8_t scram_key[16];
-        symmetric_key key;
-
-        aes_setup(enc_key, 16, 0, &key);
-        aes_ecb_decrypt(hdr->scram_key, scram_key, &key);
-        aes_done(&key);
-
-        symmetric_CBC cbc;
-        int cipher;
-        const unsigned char iv[16] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-
-        cipher = register_cipher(&aes_desc);
-        ret = cbc_start(cipher, iv, scram_key, 16, 0, &cbc);
-        if (ret != CRYPT_OK) {
-            printf("Failed to init CBC\n");
-            exit(1);
+    if (output) {
+        int fd2 = open(output, O_CREAT | O_TRUNC | O_WRONLY, 0644);
+        if (hdr->chunk[0].attr & DJI_IMAGE_CHUNK_CLEAR) {
+            write(fd2, (unsigned char *)hdr + hdr->header_size + hdr->signature_size, hdr->chunk[0].size);
         }
+        else {
+            uint8_t scram_key[16];
+            symmetric_key key;
 
-        unsigned char *outbuf = malloc(1024);
-        if (!outbuf) {
-            printf("Failed to allocate 1024 bytes\n");
-            exit(1);
-        }
+            aes_setup(enc_key, 16, 0, &key);
+            aes_ecb_decrypt(hdr->scram_key, scram_key, &key);
+            aes_done(&key);
 
-        int padded_len = (((hdr->chunk[0].size + 15) / 16) * 16);
-        int pos = 0;
-        while (padded_len) {
-            int n = min(padded_len, 1024);
-            ret = cbc_decrypt((unsigned char *)hdr + hdr->header_size + hdr->signature_size + pos, outbuf, n, &cbc);
+            symmetric_CBC cbc;
+            int cipher;
+            const unsigned char iv[16] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+
+            cipher = register_cipher(&aes_desc);
+            ret = cbc_start(cipher, iv, scram_key, 16, 0, &cbc);
             if (ret != CRYPT_OK) {
-                printf("Failed to decrypt\n");
+                printf("Failed to init CBC\n");
                 exit(1);
             }
-            pos += n;
-            padded_len -= n;
 
-            if (pos > hdr->chunk[0].size)
+            unsigned char *outbuf = malloc(1024);
+            if (!outbuf) {
+                printf("Failed to allocate 1024 bytes\n");
+                exit(1);
+            }
+
+            int padded_len = (((hdr->chunk[0].size + 15) / 16) * 16);
+            int pos = 0;
+            while (padded_len) {
+                int n = min(padded_len, 1024);
+                ret = cbc_decrypt((unsigned char *)hdr + hdr->header_size + hdr->signature_size + pos, outbuf, n, &cbc);
+                if (ret != CRYPT_OK) {
+                    printf("Failed to decrypt\n");
+                    exit(1);
+                }
+                pos += n;
+                padded_len -= n;
+
+                if (pos > hdr->chunk[0].size)
                 n = hdr->chunk[0].size - (pos - n); 
-            write(fd2, outbuf, n);
+                write(fd2, outbuf, n);
+            }
+            cbc_done(&cbc);
         }
-        cbc_done(&cbc);
+        close(fd2);
     }
-    close(fd2);
 
     printf("Slack OG Done !\n");
         
