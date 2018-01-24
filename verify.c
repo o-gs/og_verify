@@ -24,9 +24,9 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 
-#include <tomcrypt.h>
-#include <mincrypt/rsa.h>
-#include <mincrypt/sha256.h>
+#include "mincrypt/rsa.h"
+#include "mincrypt/sha256.h"
+#include "aes.h"
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
 
@@ -379,20 +379,21 @@ int main(int argc, const char **argv) {
         }
         else {
             uint8_t scram_key[16];
-            symmetric_key key;
+            unsigned char iv[16] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+            AesCtx ctx;
 
-            aes_setup(enc_key, 16, 0, &key);
-            aes_ecb_decrypt(hdr->scram_key, scram_key, &key);
-            aes_done(&key);
+            if( AesCtxIni(&ctx, NULL, enc_key, KEY128, EBC) < 0) {
+                printf("Failed to init AES\n");
+                exit(1);
+            }
 
-            symmetric_CBC cbc;
-            int cipher;
-            const unsigned char iv[16] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+            if (AesDecrypt(&ctx, hdr->scram_key, scram_key, sizeof(scram_key)) < 0) {
+                printf("Failed to decrypt\n");
+                exit(1);
+            }
 
-            cipher = register_cipher(&aes_desc);
-            ret = cbc_start(cipher, iv, scram_key, 16, 0, &cbc);
-            if (ret != CRYPT_OK) {
-                printf("Failed to init CBC\n");
+            if( AesCtxIni(&ctx, iv, scram_key, KEY128, CBC) < 0) {
+                printf("Failed to init AES\n");
                 exit(1);
             }
 
@@ -406,8 +407,7 @@ int main(int argc, const char **argv) {
             int pos = 0;
             while (padded_len) {
                 int n = min(padded_len, 1024);
-                ret = cbc_decrypt(payload + pos, outbuf, n, &cbc);
-                if (ret != CRYPT_OK) {
+                if (AesDecrypt(&ctx, payload + pos, outbuf, n) < 0) {
                     printf("Failed to decrypt\n");
                     exit(1);
                 }
@@ -418,7 +418,6 @@ int main(int argc, const char **argv) {
                 n = hdr->chunk[0].size - (pos - n);
                 write(fd2, outbuf, n);
             }
-            cbc_done(&cbc);
         }
         close(fd2);
     }
