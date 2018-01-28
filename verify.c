@@ -367,18 +367,7 @@ int main(int argc, const char **argv) {
         exit(1);
     }
 
-    uint8_t *enc_key;
-    struct enc_key_entry *enc_iter = enc_keys;
-    while ((enc_key = enc_iter->key) && enc_iter->key_id != 0 && enc_iter->key_id != hdr->enc_key)
-        enc_iter++;
-
-    if (!enc_key) {
-        printf("Unsupported encryption key: %s\n", id2str(hdr->enc_key));
-        exit(1);
-    }
-
     unsigned char hash[32];
-
     SHA256_hash(hdr, hdr->header_size, hash);
     ret = RSA_verify(auth_key,
                (const unsigned char*)hdr + hdr->header_size,
@@ -403,6 +392,16 @@ int main(int argc, const char **argv) {
             write(fd2, payload, hdr->chunk[0].size);
         }
         else {
+            uint8_t *enc_key;
+            struct enc_key_entry *enc_iter = enc_keys;
+            while ((enc_key = enc_iter->key) && enc_iter->key_id != 0 && enc_iter->key_id != hdr->enc_key)
+                enc_iter++;
+
+            if (!enc_key) {
+                printf("Unsupported encryption key: %s\n", id2str(hdr->enc_key));
+                exit(1);
+            }
+
             uint8_t scram_key[16];
             unsigned char iv[16] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
             AesCtx ctx;
