@@ -97,7 +97,7 @@ class ImageChunk(LittleEndianStructure):
                 ('addr', c_ulonglong),              #16
                 ('reserved', c_ulonglong)]          #24 end is 32
 
-def sign(filename, name, chunk_id, version, encrypt):
+def sign(filename, name, chunk_id, version, encrypt, separate_header):
 
     ver = re.search('^v(\d+).(\d+).(\d+).(\d+)$', version)
     if ver == None:
@@ -106,6 +106,10 @@ def sign(filename, name, chunk_id, version, encrypt):
 
     if not chunk_id:
         chunk_id = name
+
+    if encrypt and separate_header:
+        print('ERROR: Creating a separate signature AND encrypt the file is currently not supported')
+        return -1
 
     image_file = open(filename, "rb")
     image_data = image_file.read()
@@ -178,7 +182,9 @@ def sign(filename, name, chunk_id, version, encrypt):
     output_file.write(header)
     output_file.write(chunk)
     output_file.write(signer.sign(digest))
-    output_file.write(encrypted_data)
+
+    if not separate_header:
+        output_file.write(encrypted_data)
 
     output_file.close()
 
@@ -189,8 +195,9 @@ if __name__ == "__main__":
     parser.add_argument('-c', '--chunk', help='Name of the chunk. If omitted, <name> will be used.')
     parser.add_argument('-v', '--version', required=True, help='Version string in the form "vAA.BB.CC.DD"')
     parser.add_argument('-e', '--encrypt', default=False, action='store_true', help='Encrypt the file')
+    parser.add_argument('-H', '--header', default=False, action='store_true', help='Only create the signature header')
     args = parser.parse_args()
 
-    sign(args.file, args.name, args.chunk, args.version, args.encrypt) 
+    sign(args.file, args.name, args.chunk, args.version, args.encrypt, args.header)
 
 # vim: expandtab:ts=4:sw=4
