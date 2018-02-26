@@ -75,13 +75,18 @@ def patch_cfg(cfg_file, module_file):
     chunk  = ImageChunk.from_buffer_copy(bytearray(module_data[len_header:len_header + len_chunk]))
 
     name = chunk.id.decode()
+    try:
+        type_num = re.search('_..\d{2}\.pro' , module_file).group(0).split('.')[0][1:]
+    except:
+        type_num=""
+
     version = str(header.version[3]).zfill(2) + '.' + \
               str(header.version[2]).zfill(2) + '.' + \
               str(header.version[1]).zfill(2) + '.' + \
               str(header.version[0]).zfill(2)
 
     for line in cfg:
-        if line.find(' id="%s" ' % name) != -1:
+        if line.find(' id="%s" ' % name) != -1 and line.find(' type="%s" ' % type_num) != -1:
             line = re.sub(' md5="[^"]*"', ' md5="%s"' % binascii.hexlify(digest.digest()).decode(), line)
             line = re.sub('>[^<]*</module>', '>%s</module>' % os.path.basename(module_file), line)
             line = re.sub(' size="[^"]*"', ' size="%d"' % len(module_data), line)
