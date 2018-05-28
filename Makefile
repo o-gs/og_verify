@@ -9,20 +9,19 @@ ifeq ($(ARCH), arm)
   CFLAGS =  -I$(NDK_BUNDLE)/sysroot/usr/include/arm-linux-androideabi
   CFLAGS += -I$(NDK_BUNDLE)/sysroot/usr/include
   CFLAGS += -Wno-multichar -Wno-attributes
-  #LDFLAGS = -L/Volumes/bionic/android_build/out/target/product/generic/system/lib/
   LDFLAGS += --sysroot=$(NDK_BUNDLE)/platforms/android-16/arch-arm
   LDFLAGS += -s
 endif
 
 CC = $(CROSS_COMPILE)gcc
-CFLAGS += -I. -O3
+CFLAGS += -Isrc -O3
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@ 
+	$(CC) $(CFLAGS) -c $< -o $@
 
-og_verify: verify.o rsa.o sha.o sha256.o aes.o
+og_verify: src/verify.o src/rsa.o src/sha.o src/sha256.o src/aes.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 clean:
-	rm -f og_verify *.o
+	rm -f og_verify src/*.o
 
