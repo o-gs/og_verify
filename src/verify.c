@@ -23,6 +23,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
+#include <errno.h>
 
 #include "mincrypt/rsa.h"
 #include "mincrypt/sha256.h"
@@ -233,6 +234,10 @@ static void *map_file(char *filename) {
         fstat(fd, &statbuf);
         buffer = mmap(NULL, statbuf.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
         close(fd);
+    }
+    else {
+        printf("Could not open file %s: (%d) (%s)\n", filename, errno, strerror(errno));
+        exit(1);
     }
 
     return buffer;
